@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.core import mail
 from django.http import HttpRequest
 from django.test import TestCase
-from tastypie.authentication import Authentication, BasicAuthentication, ApiKeyAuthentication, DigestAuthentication, OAuthAuthentication
+from tastypie.authentication import Authentication, BasicAuthentication, ApiKeyAuthentication, DigestAuthentication, OAuthAuthentication, DjangoAuthentication
 from tastypie.http import HttpUnauthorized
 from tastypie.models import ApiKey, create_api_key
 
@@ -254,3 +254,47 @@ class OAuthAuthenticationTestCase(TestCase):
         resp = auth.is_authenticated(request)
         self.assertEqual(resp, True)
         self.assertEqual(request.user.pk, user.pk)
+
+
+class DjangoAuthenticationTestCase(TestCase):
+    fixtures = ['note_testdata.json']
+
+    def setUp(self):
+        from django.test.client import RequestFactory
+        self.factory = RequestFactory()
+
+        # create a test user with a proper hashed password
+        from django.contrib.auth.models import User
+        user, created = User.objects.get_or_create(username='janeroe')
+        user.set_password('qwe123')
+        user.save()
+
+    def test_is_authenticated(self):
+        auth = DjangoAuthentication()
+        request = self.factory.get('/')
+        #load the middleware since django doesnt...
+        from django.core.handlers.base import BaseHandler
+        handler = BaseHandler()
+        handler.load_middleware()
+        for middleware_method in handler._request_middleware:
+            self.assertIsNone(middleware_method(request))
+
+
+        # not logged in should fail
+        self.assertFalse(auth.is_authenticated(request))
+        # not logged in should be AnonymousUser
+        self.assertEquals(auth.get_identifier(request), "AnonymousUser")
+
+        # login test user
+        from django.contrib.auth import authenticate, login
+        user = authenticate(username='janeroe',password='qwe123')
+        self.assertIsNotNone(user)
+        login(request, user)
+
+        # logged in should succeed
+        self.assertTrue(auth.is_authenticated(request))
+        # should be janeroe logged in
+        self.assertEquals(auth.get_identifier(request), "janeroe")
+
+
+

@@ -377,3 +377,18 @@ class OAuthAuthentication(Authentication):
     def validate_token(self, request, consumer, token):
         oauth_server, oauth_request = oauth_provider.utils.initialize_server_request(request)
         return oauth_server.verify_request(oauth_request, consumer, token)
+
+
+
+class DjangoAuthentication(Authentication):
+    """ 
+    Use django.contrib.auth authentication.
+    Requires the use of django.contrib.auth.middleware.AuthenticationMiddleware
+    """
+    def is_authenticated(self, request, **kwargs):
+        return request.user.is_authenticated()
+
+    def get_identifier(self, request):
+        if request.user.is_authenticated():
+            return request.user.username
+        return 'AnonymousUser'
